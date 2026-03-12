@@ -211,7 +211,8 @@ AM, Chicago, USA
 SZ, Hangzhou, China
 DS, Moscow, Russia
 JK, Visakhapatnam, India
-HP, Mumbai, India</textarea>
+HP, Ahmedabad, India
+FX, Hengyang, China</textarea>
   <button class="btn" onclick="startMap()">Show on Map</button>
 </div>
 
@@ -282,6 +283,9 @@ const CITY_DB = {
   "hangzhou": { lat: 30.27, lng: 120.15, display: "Hangzhou, China", fact: "Hangzhou's West Lake inspired the saying 'Above there is heaven, below there are Hangzhou and Suzhou' - Marco Polo called it the finest city in the world." },
   "visakhapatnam": { lat: 17.69, lng: 83.22, display: "Visakhapatnam, India", fact: "Visakhapatnam (Vizag) has one of the oldest shipyards in India and is home to a submarine museum - the INS Kurusura - the first of its kind in South Asia." },
   "vizag": { lat: 17.69, lng: 83.22, display: "Visakhapatnam, India", fact: "Visakhapatnam (Vizag) has one of the oldest shipyards in India and is home to a submarine museum - the INS Kurusura - the first of its kind in South Asia." },
+  "ahmedabad": { lat: 23.02, lng: 72.57, display: "Ahmedabad, India", fact: "Ahmedabad was India's first UNESCO World Heritage City, known for its stunning stepped wells." },
+  "ahemdabad": { lat: 23.02, lng: 72.57, display: "Ahmedabad, India", fact: "Ahmedabad was India's first UNESCO World Heritage City, known for its stunning stepped wells." },
+  "hengyang": { lat: 26.89, lng: 112.57, display: "Hengyang, China", fact: "Hengyang is known as the 'Wild Goose City' because migrating geese from Siberia traditionally stop at its Mount Hengshan before turning back north." },
 };
 
 function lookupCity(cityName) {
@@ -592,6 +596,7 @@ async function startMap() {
 
   const lines = input.split('\n').filter(l => l.trim());
   const members = [];
+  const skipped = [];
 
   for (const line of lines) {
     const parts = line.split(',').map(s => s.trim());
@@ -603,8 +608,12 @@ async function startMap() {
     if (data) {
       members.push({ initials, city, country, lat: data.lat, lng: data.lng, display: data.display, facts: data.facts });
     } else {
-      console.warn(`City not found: ${city}. Skipping ${initials}.`);
+      skipped.push(`${initials} (${city})`);
     }
+  }
+
+  if (skipped.length > 0) {
+    alert('Could not find these cities: ' + skipped.join(', ') + '\n\nCheck spelling or add them to the city database.');
   }
 
   // Assign per-member fact: rotate through available facts for shared cities
@@ -631,7 +640,14 @@ async function startMap() {
 
   if (!geoData) await loadGeoData();
 
+  // Ensure layout is computed before measuring canvas
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   setupCanvas();
+
+  // Remove old listeners to avoid duplicates when re-entering from Edit Team
+  canvas.removeEventListener('click', handleCanvasClick);
+  canvas.removeEventListener('mousemove', handleCanvasMove);
   canvas.addEventListener('click', handleCanvasClick);
   canvas.addEventListener('mousemove', handleCanvasMove);
 

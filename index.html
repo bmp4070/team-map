@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Where We're From</title>
+<style>
+  :root {
+    --bg: #0a0a1a;
+    --bg-card: #12122a;
+    --border: #2a2a4a;
+    --text: #eee;
+    --text-muted: #888;
+    --accent: #4d9fff;
+    --accent-glow: rgba(77, 159, 255, .5);
+    --dot: #4d9fff;
+    --dot-hover: #7cb8ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    margin: 1.5rem 0 0.3rem;
+    background: linear-gradient(135deg, #4d9fff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .map-container {
+    position: relative;
+    width: 95vw;
+    max-width: 1200px;
+    margin: 0.5rem auto;
+    background: #0d1117;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  canvas#mapCanvas {
+    width: 100%;
+    display: block;
+    cursor: default;
+  }
+
+  .tooltip {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    max-width: 300px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  .tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .tooltip-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.2rem;
+  }
+
+  .tooltip-city {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+  }
+
+  .tooltip-fact {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .tooltip-fact::before {
+    content: "Fun fact: ";
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .instructions {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+
+  .team-count {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+
+  .setup-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    width: 100%;
+    max-width: 700px;
+  }
+
+  .setup-screen h2 {
+    font-size: 1.3rem;
+    margin: 1rem 0 0.5rem;
+    color: var(--text);
+  }
+
+  .setup-screen p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 250px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    padding: 1rem;
+    resize: vertical;
+    line-height: 1.6;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .btn {
+    margin-top: 1rem;
+    padding: 0.75rem 2rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .btn:hover { background: #3a88e8; transform: scale(1.03); }
+  .btn:active { transform: scale(0.98); }
+
+  .game-screen { display: none; width: 100%; }
+  .game-screen.active { display: flex; flex-direction: column; align-items: center; }
+  .setup-screen.hidden { display: none; }
+
+  .loading { color: var(--text-muted); font-size: 1rem; padding: 3rem; }
+</style>
+</head>
+<body>
+
+<!-- Setup Screen -->
+<div class="setup-screen" id="setup">
+  <h1>Where We're From</h1>
+  <p class="subtitle">An ice-breaker world map for your team</p>
+  <h2>Enter your team members</h2>
+  <p>One per line: <strong>Initials, City, Country</strong><br>
+    Example: <code style="color:var(--accent)">MP, Bangalore, India</code></p>
+  <textarea id="teamInput" spellcheck="false" placeholder="MP, Bangalore, India
+JD, San Francisco, USA
+AK, Tokyo, Japan
+LS, London, UK
+...">EJ, Saint-Petersburg, Russia
+AP, Hyderabad, India
+MBP, Hyderabad, India
+YL, ChongQing, China
+MP, Chicago, USA
+JD, Yuncheng, China
+SG, Krakow, Poland
+DY, Jilin City, China
+AR, Mumbai, India
+AM, Chicago, USA
+SZ, Hangzhou, China
+DS, Moscow, Russia
+JK, Visakhapatnam, India
+HP, Mumbai, India</textarea>
+  <button class="btn" onclick="startMap()">Show on Map</button>
+</div>
+
+<!-- Game Screen -->
+<div class="game-screen" id="game">
+  <h1>Where We're From</h1>
+  <p class="team-count" id="teamCount"></p>
+  <div class="map-container" id="mapContainer">
+    <canvas id="mapCanvas"></canvas>
+    <div class="tooltip" id="tooltip">
+      <div class="tooltip-name" id="tooltipName"></div>
+      <div class="tooltip-city" id="tooltipCity"></div>
+      <div class="tooltip-fact" id="tooltipFact"></div>
+    </div>
+  </div>
+  <p class="instructions">Click on a blue dot to reveal who's from there</p>
+  <button class="btn" style="margin-bottom:2rem" onclick="goBack()">Edit Team</button>
+</div>
+
+<script>
+// City database
+const CITY_DB = {
+  "bangalore": { lat: 12.97, lng: 77.59, display: "Bangalore, India", fact: "Bangalore is known as the 'Silicon Valley of India' and has more than 10,000 restaurants serving dosas alone." },
+  "bengaluru": { lat: 12.97, lng: 77.59, display: "Bengaluru, India", fact: "Bengaluru sits at 3,000 feet elevation, giving it one of the most pleasant climates of any major Indian city." },
+  "san francisco": { lat: 37.77, lng: -122.42, display: "San Francisco, USA", fact: "The fog in San Francisco is so famous it has its own name - Karl - and even its own Twitter account." },
+  "new york": { lat: 40.71, lng: -74.01, display: "New York, USA", fact: "New York City's subway system has 472 stations - more than any other system in the world." },
+  "tokyo": { lat: 35.68, lng: 139.69, display: "Tokyo, Japan", fact: "Tokyo has over 200 Michelin-starred restaurants, more than any other city in the world." },
+  "london": { lat: 51.51, lng: -0.13, display: "London, UK", fact: "Over 300 languages are spoken in London, making it the most linguistically diverse city on Earth." },
+  "paris": { lat: 48.86, lng: 2.35, display: "Paris, France", fact: "Paris has only one stop sign in the entire city." },
+  "berlin": { lat: 52.52, lng: 13.41, display: "Berlin, Germany", fact: "Berlin has more bridges than Venice - around 960 compared to Venice's 400." },
+  "mumbai": { lat: 19.08, lng: 72.88, display: "Mumbai, India", facts: ["Mumbai's dabbawalas deliver over 200,000 lunch boxes daily with an error rate of just 1 in 16 million.", "Mumbai's local trains carry over 7.5 million passengers daily - more than the entire population of many countries."] },
+  "delhi": { lat: 28.61, lng: 77.21, display: "Delhi, India", fact: "Delhi's Qutub Minar, built in 1193, is the tallest brick minaret in the world at 72.5 meters." },
+  "hyderabad": { lat: 17.39, lng: 78.49, display: "Hyderabad, India", facts: ["Hyderabad is called the 'City of Pearls' and was once the global center of the diamond trade.", "Hyderabad's Charminar was built in 1591 to celebrate the end of a deadly plague - its four grand arches face the four cardinal directions."] },
+  "chennai": { lat: 13.08, lng: 80.27, display: "Chennai, India", fact: "Chennai has the longest natural urban beach in India - Marina Beach stretches for 13 km." },
+  "pune": { lat: 18.52, lng: 73.86, display: "Pune, India", fact: "Pune is called the 'Oxford of the East' and hosts one of Asia's largest universities." },
+  "kolkata": { lat: 22.57, lng: 88.36, display: "Kolkata, India", fact: "Kolkata still runs the oldest operating electric tram network in Asia, since 1902." },
+  "beijing": { lat: 39.90, lng: 116.40, display: "Beijing, China", fact: "Beijing's Forbidden City has exactly 9,999 rooms." },
+  "shanghai": { lat: 31.23, lng: 121.47, display: "Shanghai, China", fact: "Shanghai's Maglev train reaches 431 km/h, making it the fastest commercial train in the world." },
+  "singapore": { lat: 1.35, lng: 103.82, display: "Singapore", fact: "Singapore is one of only three surviving city-states in the world." },
+  "dubai": { lat: 25.20, lng: 55.27, display: "Dubai, UAE", fact: "Dubai's police fleet includes a Bugatti Veyron, Lamborghini, and Ferrari." },
+  "sydney": { lat: -33.87, lng: 151.21, display: "Sydney, Australia", fact: "The Sydney Opera House roof is covered with over 1 million tiles, all made in Sweden." },
+  "toronto": { lat: 43.65, lng: -79.38, display: "Toronto, Canada", fact: "Toronto's PATH is the largest underground shopping complex in the world." },
+  "seattle": { lat: 47.61, lng: -122.33, display: "Seattle, USA", fact: "Despite its rainy reputation, Seattle gets less annual rainfall than New York." },
+  "los angeles": { lat: 34.05, lng: -118.24, display: "Los Angeles, USA", fact: "The full name of LA has 34 words in Spanish." },
+  "chicago": { lat: 41.88, lng: -87.63, display: "Chicago, USA", facts: ["Chicago reversed the flow of its river in 1900 using engineering - it now flows away from Lake Michigan.", "Chicago is home to the first-ever skyscraper - the 10-story Home Insurance Building, built in 1885."] },
+  "boston": { lat: 42.36, lng: -71.06, display: "Boston, USA", fact: "Boston's subway, opened in 1897, is the oldest in the United States." },
+  "moscow": { lat: 55.76, lng: 37.62, display: "Moscow, Russia", fact: "Moscow's metro stations are so ornate they're called 'underground palaces' - adorned with marble, mosaics, and chandeliers." },
+  "amsterdam": { lat: 52.37, lng: 4.90, display: "Amsterdam, Netherlands", fact: "Amsterdam has more bicycles than people." },
+  "rome": { lat: 41.90, lng: 12.50, display: "Rome, Italy", fact: "Rome's Trevi Fountain collects about 3,000 euros in coins every day." },
+  "istanbul": { lat: 41.01, lng: 28.98, display: "Istanbul, Turkey", fact: "Istanbul is the only city in the world that spans two continents." },
+  "warsaw": { lat: 52.23, lng: 21.01, display: "Warsaw, Poland", fact: "85% of Warsaw was destroyed in WWII. The Old Town was rebuilt so faithfully it became a UNESCO site." },
+  "budapest": { lat: 47.50, lng: 19.04, display: "Budapest, Hungary", fact: "Budapest has the oldest metro line in continental Europe, opened in 1896." },
+  "seoul": { lat: 37.57, lng: 126.98, display: "Seoul, South Korea", fact: "Seoul's internet speed is among the fastest in the world." },
+  "bangkok": { lat: 13.76, lng: 100.50, display: "Bangkok, Thailand", fact: "Bangkok's full ceremonial name has 168 characters." },
+  "nairobi": { lat: -1.29, lng: 36.82, display: "Nairobi, Kenya", fact: "Nairobi is the only capital city with a national park within its borders." },
+  "cairo": { lat: 30.04, lng: 31.24, display: "Cairo, Egypt", fact: "Cairo's Al-Azhar University, founded in 970 AD, is one of the oldest in the world." },
+  "sao paulo": { lat: -23.55, lng: -46.63, display: "Sao Paulo, Brazil", fact: "Sao Paulo has the largest Japanese community outside Japan." },
+  "mexico city": { lat: 19.43, lng: -99.13, display: "Mexico City, Mexico", fact: "Mexico City is sinking at a rate of 50 cm per year." },
+  "saint-petersburg": { lat: 59.93, lng: 30.32, display: "Saint-Petersburg, Russia", fact: "Saint-Petersburg has 342 bridges and during the White Nights in June, the sun barely sets - it stays light nearly 24 hours." },
+  "st. petersburg": { lat: 59.93, lng: 30.32, display: "Saint-Petersburg, Russia", fact: "Saint-Petersburg's Hermitage Museum has over 3 million items - if you spent one minute at each, it would take 11 years to see them all." },
+  "saint petersburg": { lat: 59.93, lng: 30.32, display: "Saint-Petersburg, Russia", fact: "Saint-Petersburg has 342 bridges and during the White Nights in June, the sun barely sets - it stays light nearly 24 hours." },
+  "chongqing": { lat: 29.56, lng: 106.55, display: "Chongqing, China", fact: "Chongqing is the world's largest municipality by population (~30 million) and is famous for its extreme hills - buildings have entrances on multiple floors from different streets." },
+  "yuncheng": { lat: 35.03, lng: 111.01, display: "Yuncheng, China", fact: "Yuncheng is home to a Salt Lake that turns vivid shades of pink and green due to algae, and has over 4,000 years of salt-harvesting history." },
+  "krakow": { lat: 50.06, lng: 19.94, display: "Krakow, Poland", fact: "Krakow's Main Square is the largest medieval town square in Europe, and a trumpet call plays every hour from St. Mary's Basilica - cut short mid-note to honor a 13th-century trumpeter shot by invaders." },
+  "kraków": { lat: 50.06, lng: 19.94, display: "Krakow, Poland", fact: "Krakow's Main Square is the largest medieval town square in Europe, and a trumpet call plays every hour from St. Mary's Basilica - cut short mid-note to honor a 13th-century trumpeter shot by invaders." },
+  "jilin city": { lat: 43.84, lng: 126.55, display: "Jilin City, China", fact: "Jilin City is famous for its stunning winter rime ice along the Songhua River - trees become coated in delicate white frost, creating a magical frozen landscape." },
+  "jilin": { lat: 43.84, lng: 126.55, display: "Jilin City, China", fact: "Jilin City is famous for its stunning winter rime ice along the Songhua River - trees become coated in delicate white frost, creating a magical frozen landscape." },
+  "hangzhou": { lat: 30.27, lng: 120.15, display: "Hangzhou, China", fact: "Hangzhou's West Lake inspired the saying 'Above there is heaven, below there are Hangzhou and Suzhou' - Marco Polo called it the finest city in the world." },
+  "visakhapatnam": { lat: 17.69, lng: 83.22, display: "Visakhapatnam, India", fact: "Visakhapatnam (Vizag) has one of the oldest shipyards in India and is home to a submarine museum - the INS Kurusura - the first of its kind in South Asia." },
+  "vizag": { lat: 17.69, lng: 83.22, display: "Visakhapatnam, India", fact: "Visakhapatnam (Vizag) has one of the oldest shipyards in India and is home to a submarine museum - the INS Kurusura - the first of its kind in South Asia." },
+};
+
+function lookupCity(cityName) {
+  const key = cityName.toLowerCase().trim();
+  let entry = CITY_DB[key];
+  if (!entry) {
+    for (const [k, v] of Object.entries(CITY_DB)) {
+      if (k.includes(key) || key.includes(k)) { entry = v; break; }
+    }
+  }
+  if (!entry) return null;
+  // Normalize: if entry has 'fact' string, convert to single-element 'facts' array
+  if (entry.fact && !entry.facts) entry.facts = [entry.fact];
+  return entry;
+}
+
+// ── Map rendering with real GeoJSON ──
+const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+let geoData = null;
+let mapMembers = [];
+let dotPositions = []; // {x, y, r, member}
+let selectedDot = null;
+let canvas, ctx;
+let pulsePhase = 0;
+let animFrame;
+
+// Mercator projection (clamped to ~85 degrees to avoid infinity)
+function project(lng, lat, w, h) {
+  const x = (lng + 180) / 360 * w;
+  const latRad = lat * Math.PI / 180;
+  const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+  const y = h / 2 - (w * mercN) / (2 * Math.PI);
+  return { x, y };
+}
+
+function drawMap() {
+  if (!canvas || !geoData) return;
+  const w = canvas.width;
+  const h = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = '#141e2b';
+  ctx.lineWidth = 0.5 * dpr;
+  for (let lng = -180; lng <= 180; lng += 30) {
+    const p = project(lng, 0, w, h);
+    ctx.beginPath();
+    ctx.moveTo(p.x, 0);
+    ctx.lineTo(p.x, h);
+    ctx.stroke();
+  }
+  for (let lat = -60; lat <= 80; lat += 20) {
+    const p = project(0, lat, w, h);
+    ctx.beginPath();
+    ctx.moveTo(0, p.y);
+    ctx.lineTo(w, p.y);
+    ctx.stroke();
+  }
+
+  // Draw land from TopoJSON
+  ctx.fillStyle = '#162038';
+  ctx.strokeStyle = '#2a3f6a';
+  ctx.lineWidth = 0.6 * dpr;
+
+  if (geoData.type === 'Topology') {
+    // It's TopoJSON, need to decode arcs
+    const land = geoData.objects.land;
+    const arcs = geoData.arcs;
+    const transform = geoData.transform;
+
+    function decodeArc(arcIdx) {
+      const reverse = arcIdx < 0;
+      const idx = reverse ? ~arcIdx : arcIdx;
+      const arc = arcs[idx];
+      const coords = [];
+      let x = 0, y = 0;
+      for (const [dx, dy] of arc) {
+        x += dx;
+        y += dy;
+        const lng = x * transform.scale[0] + transform.translate[0];
+        const lat = y * transform.scale[1] + transform.translate[1];
+        coords.push([lng, lat]);
+      }
+      if (reverse) coords.reverse();
+      return coords;
+    }
+
+    function drawGeometry(geom) {
+      const rings = geom.type === 'MultiPolygon'
+        ? geom.arcs.flat()
+        : geom.arcs;
+
+      for (const ring of rings) {
+        const coords = [];
+        for (const arcIdx of ring) {
+          coords.push(...decodeArc(arcIdx));
+        }
+        if (coords.length === 0) continue;
+
+        ctx.beginPath();
+        const first = project(coords[0][0], coords[0][1], w, h);
+        ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < coords.length; i++) {
+          const p = project(coords[i][0], coords[i][1], w, h);
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    if (land.type === 'GeometryCollection') {
+      for (const geom of land.geometries) {
+        drawGeometry(geom);
+      }
+    } else {
+      drawGeometry(land);
+    }
+  }
+
+  // Draw dots
+  const baseDotR = 6 * dpr;
+  dotPositions = [];
+
+  // Distinct dot colors for co-located members
+  const DOT_COLORS = [
+    { fill: '#4d9fff', glow: 'rgba(77,159,255,0.3)',  pulse: 'rgba(77,159,255,' },
+    { fill: '#f97316', glow: 'rgba(249,115,22,0.3)',   pulse: 'rgba(249,115,22,' },
+    { fill: '#a78bfa', glow: 'rgba(167,139,250,0.3)',  pulse: 'rgba(167,139,250,' },
+    { fill: '#34d399', glow: 'rgba(52,211,153,0.3)',   pulse: 'rgba(52,211,153,' },
+    { fill: '#f472b6', glow: 'rgba(244,114,182,0.3)',  pulse: 'rgba(244,114,182,' },
+    { fill: '#fbbf24', glow: 'rgba(251,191,36,0.3)',   pulse: 'rgba(251,191,36,' },
+  ];
+
+  // Group by location
+  const locationMap = {};
+  for (const m of mapMembers) {
+    const key = `${m.lat},${m.lng}`;
+    if (!locationMap[key]) locationMap[key] = [];
+    locationMap[key].push(m);
+  }
+
+  for (const group of Object.values(locationMap)) {
+    const m0 = group[0];
+    const base = project(m0.lng, m0.lat, w, h);
+    const isShared = group.length > 1;
+    // Shrink dots when sharing a city so they don't overlap
+    const dotR = isShared ? baseDotR * 0.7 : baseDotR;
+    const spacing = dotR * 2.4;
+
+    group.forEach((member, idx) => {
+      const color = isShared ? DOT_COLORS[idx % DOT_COLORS.length] : DOT_COLORS[0];
+      const offsetX = isShared ? (idx - (group.length - 1) / 2) * spacing : 0;
+      const cx = base.x + offsetX;
+      const cy = base.y;
+
+      // Pulse ring
+      const pulseR = dotR + (dotR * 2.5) * ((pulsePhase + idx * 0.3) % 1);
+      const pulseAlpha = 0.5 * (1 - ((pulsePhase + idx * 0.3) % 1));
+      ctx.beginPath();
+      ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+      ctx.strokeStyle = `${color.pulse}${pulseAlpha})`;
+      ctx.lineWidth = 1.5 * dpr;
+      ctx.stroke();
+
+      // Glow
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotR * 1.8, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(cx, cy, dotR * 0.5, cx, cy, dotR * 1.8);
+      grad.addColorStop(0, color.glow);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Dot
+      const isSelected = selectedDot && selectedDot.initials === member.initials && selectedDot.lat === member.lat;
+      ctx.beginPath();
+      ctx.arc(cx, cy, isSelected ? dotR * 1.2 : dotR, 0, Math.PI * 2);
+      ctx.fillStyle = color.fill;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.stroke();
+
+      // Show initials ONLY if this dot is selected
+      if (isSelected) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${Math.round(5 * dpr)}px 'Segoe UI', system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(member.initials, cx, cy - dotR * 1.8);
+      }
+
+      dotPositions.push({ x: cx, y: cy, r: dotR * 1.3, member, color: color.fill });
+    });
+  }
+}
+
+function animate() {
+  pulsePhase = (pulsePhase + 0.005) % 1;
+  drawMap();
+  animFrame = requestAnimationFrame(animate);
+}
+
+function setupCanvas() {
+  canvas = document.getElementById('mapCanvas');
+  ctx = canvas.getContext('2d');
+  const container = document.getElementById('mapContainer');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = container.getBoundingClientRect();
+  const w = rect.width;
+  const h = w * 0.52; // aspect ratio for Mercator
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+}
+
+function handleCanvasClick(e) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const mx = (e.clientX - rect.left) * dpr;
+  const my = (e.clientY - rect.top) * dpr;
+
+  let hit = null;
+  for (const dot of dotPositions) {
+    const dx = mx - dot.x;
+    const dy = my - dot.y;
+    if (dx * dx + dy * dy < dot.r * dot.r) {
+      hit = dot;
+      break;
+    }
+  }
+
+  if (hit) {
+    selectedDot = hit.member;
+    showTooltip(hit.member, hit.x, hit.y, hit.color);
+  } else {
+    selectedDot = null;
+    hideTooltip();
+  }
+}
+
+function handleCanvasMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const mx = (e.clientX - rect.left) * dpr;
+  const my = (e.clientY - rect.top) * dpr;
+
+  let hovering = false;
+  for (const dot of dotPositions) {
+    const dx = mx - dot.x;
+    const dy = my - dot.y;
+    if (dx * dx + dy * dy < dot.r * dot.r) {
+      hovering = true;
+      break;
+    }
+  }
+  canvas.style.cursor = hovering ? 'pointer' : 'default';
+}
+
+function showTooltip(member, canvasX, canvasY, dotColor) {
+  const tooltip = document.getElementById('tooltip');
+  const container = document.getElementById('mapContainer');
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  const pixelX = canvasX / dpr;
+  const pixelY = canvasY / dpr;
+
+  const nameEl = document.getElementById('tooltipName');
+  nameEl.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dotColor};margin-right:6px;vertical-align:middle;"></span>${member.initials}`;
+  document.getElementById('tooltipCity').textContent = member.display;
+  document.getElementById('tooltipFact').textContent = member.fact;
+
+  let left = pixelX + 15;
+  let top = pixelY - 20;
+
+  if (left + 300 > rect.width) left = pixelX - 315;
+  if (top + 160 > rect.height) top = rect.height - 170;
+  if (top < 0) top = 10;
+  if (left < 0) left = 10;
+
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+  tooltip.classList.add('visible');
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+async function loadGeoData() {
+  const resp = await fetch(GEO_URL);
+  geoData = await resp.json();
+}
+
+async function startMap() {
+  const input = document.getElementById('teamInput').value.trim();
+  if (!input) return;
+
+  const lines = input.split('\n').filter(l => l.trim());
+  const members = [];
+
+  for (const line of lines) {
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 2) continue;
+    const initials = parts[0].toUpperCase();
+    const city = parts[1];
+    const country = parts[2] || '';
+    const data = lookupCity(city);
+    if (data) {
+      members.push({ initials, city, country, lat: data.lat, lng: data.lng, display: data.display, facts: data.facts });
+    } else {
+      console.warn(`City not found: ${city}. Skipping ${initials}.`);
+    }
+  }
+
+  // Assign per-member fact: rotate through available facts for shared cities
+  const cityCount = {};
+  for (const m of members) {
+    const key = `${m.lat},${m.lng}`;
+    cityCount[key] = (cityCount[key] || 0);
+    const idx = cityCount[key] % m.facts.length;
+    m.fact = m.facts[idx];
+    cityCount[key]++;
+  }
+
+  if (members.length === 0) {
+    alert('No recognized cities found. Please check your input.');
+    return;
+  }
+
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('game').classList.add('active');
+  document.getElementById('teamCount').textContent = `${members.length} team members across the globe`;
+
+  mapMembers = members;
+  selectedDot = null;
+
+  if (!geoData) await loadGeoData();
+
+  setupCanvas();
+  canvas.addEventListener('click', handleCanvasClick);
+  canvas.addEventListener('mousemove', handleCanvasMove);
+
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animate();
+}
+
+function goBack() {
+  document.getElementById('game').classList.remove('active');
+  document.getElementById('setup').classList.remove('hidden');
+  hideTooltip();
+  selectedDot = null;
+  if (animFrame) cancelAnimationFrame(animFrame);
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('game').classList.contains('active')) {
+    setupCanvas();
+  }
+});
+</script>
+</body>
+</html>

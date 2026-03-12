@@ -302,6 +302,33 @@ function lookupCity(cityName) {
   return entry;
 }
 
+// Geocode unknown cities via OpenStreetMap Nominatim
+async function geocodeCity(cityName, country) {
+  const query = country ? `${cityName}, ${country}` : cityName;
+  try {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
+      headers: { 'User-Agent': 'TeamMapIceBreaker/1.0' }
+    });
+    const results = await resp.json();
+    if (results.length > 0) {
+      const r = results[0];
+      const display = country ? `${cityName}, ${country}` : r.display_name.split(',').slice(0, 2).join(',');
+      const entry = {
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+        display,
+        facts: [`${cityName} is located at ${parseFloat(r.lat).toFixed(1)}°${r.lat >= 0 ? 'N' : 'S'}, ${Math.abs(parseFloat(r.lon)).toFixed(1)}°${r.lon >= 0 ? 'E' : 'W'}.`]
+      };
+      // Cache in DB for future lookups
+      CITY_DB[cityName.toLowerCase().trim()] = entry;
+      return entry;
+    }
+  } catch (e) {
+    console.warn(`Geocoding failed for ${cityName}:`, e);
+  }
+  return null;
+}
+
 // ── Map rendering with real GeoJSON ──
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
 let geoData = null;
@@ -596,7 +623,7 @@ async function startMap() {
 
   const lines = input.split('\n').filter(l => l.trim());
   const members = [];
-  const skipped = [];
+  const toGeocode = [];
 
   for (const line of lines) {
     const parts = line.split(',').map(s => s.trim());
@@ -608,12 +635,24 @@ async function startMap() {
     if (data) {
       members.push({ initials, city, country, lat: data.lat, lng: data.lng, display: data.display, facts: data.facts });
     } else {
-      skipped.push(`${initials} (${city})`);
+      toGeocode.push({ initials, city, country });
     }
   }
 
-  if (skipped.length > 0) {
-    alert('Could not find these cities: ' + skipped.join(', ') + '\n\nCheck spelling or add them to the city database.');
+  // Geocode unknown cities (sequentially to respect Nominatim rate limits)
+  if (toGeocode.length > 0) {
+    document.getElementById('setup').querySelector('.btn').textContent = `Looking up ${toGeocode.length} unknown cities...`;
+    for (const entry of toGeocode) {
+      const data = await geocodeCity(entry.city, entry.country);
+      if (data) {
+        members.push({ initials: entry.initials, city: entry.city, country: entry.country, lat: data.lat, lng: data.lng, display: data.display, facts: data.facts });
+      } else {
+        console.warn(`Could not geocode: ${entry.city}. Skipping ${entry.initials}.`);
+      }
+      // Small delay between requests to be polite to Nominatim
+      if (toGeocode.length > 1) await new Promise(r => setTimeout(r, 300));
+    }
+    document.getElementById('setup').querySelector('.btn').textContent = 'Show on Map';
   }
 
   // Assign per-member fact: rotate through available facts for shared cities
